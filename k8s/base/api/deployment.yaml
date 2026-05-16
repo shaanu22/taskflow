@@ -17,10 +17,12 @@ spec:
         app: taskflow
         component: api
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: api
-          image: taskflow-api:local
-          imagePullPolicy: Never    # Use the locally imported image
+          image: ghcr.io/shaanu22/taskflow-api:latest
+          imagePullPolicy: Always   # Use the locally imported image
           ports:
             - containerPort: 3000
               name: http

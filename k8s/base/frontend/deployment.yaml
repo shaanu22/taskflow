@@ -17,10 +17,12 @@ spec:
         app: taskflow
         component: frontend
     spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
       containers:
         - name: frontend
-          image: taskflow-frontend:local
-          imagePullPolicy: Never
+          image: ghcr.io/shaanu22/taskflow-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           readinessProbe:
