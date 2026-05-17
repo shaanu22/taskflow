@@ -1,0 +1,26 @@
+# Staging overrides — only what differs from values.yaml
+
+global:
+  environment: staging
+
+image:
+  api:
+    pullPolicy: Always
+  frontend:
+    pullPolicy: Always
+
+api:
+  replicaCount: 2
+  config:
+    nodeEnv: staging
+    logLevel: info
+
+frontend:
+  replicaCount: 2
+
+postgres:
+  storage: 10Gi
+
+ingress:
+  enabled: true
+  className: nginx

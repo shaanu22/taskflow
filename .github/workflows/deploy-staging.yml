@@ -1,0 +1,192 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - release/*
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14-alpine
+        env:
+          POSTGRES_DB: taskflow_test
+          POSTGRES_USER: taskflow
+          POSTGRES_PASSWORD: test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: api/package-lock.json
+      - name: Install API dependencies
+        working-directory: api
+        run: npm ci
+      - name: Run tests
+        working-directory: api
+        run: npm test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgresql://taskflow:test_password@localhost:5432/taskflow_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_secret
+      - name: Lint
+        working-directory: api
+        run: npm run lint
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  build:
+    name: Build and Push
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      api-digest: ${{ steps.build-api.outputs.digest }}
+      frontend-digest: ${{ steps.build-frontend.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: API image metadata
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/taskflow-api
+          tags: |
+            type=ref,event=branch,suffix=-${{ github.sha }}
+            type=raw,value=staging-latest
+      - name: Build and push API
+        id: build-api
+        uses: docker/build-push-action@v5
+        with:
+          context: ./api
+          target: production
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/taskflow-api:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/taskflow-api:cache,mode=max
+      - name: Frontend image metadata
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/taskflow-frontend
+          tags: |
+            type=ref,event=branch,suffix=-${{ github.sha }}
+            type=raw,value=staging-latest
+      - name: Build and push frontend
+        id: build-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          target: production
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/taskflow-frontend:cache
+          cache-to: type=registry,ref=ghcr.io/${{ github.repository_owner }}/taskflow-frontend:cache,mode=max
+
+  scan:
+    name: Security Scan
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Scan API image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/taskflow-api:staging-latest
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: /usr/local/lib/node_modules/npm,/usr/local/lib/node_modules/corepack,/opt/yarn-v1.22.22
+      - name: Scan frontend image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/taskflow-frontend:staging-latest
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+          ignore-unfixed: true
+          skip-dirs: /usr/local/lib/node_modules/npm,/usr/local/lib/node_modules/corepack,/opt/yarn-v1.22.22
+
+  deploy:
+    name: Deploy to Staging
+    needs: scan
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure kubectl
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+      - name: Install Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: "3.14.0"
+      - name: Deploy to staging
+        run: |
+          helm upgrade --install taskflow ./helm/taskflow \
+            --namespace taskflow-staging \
+            --values ./helm/taskflow/values.yaml \
+            --values ./helm/taskflow/values-staging.yaml \
+            --set image.api.tag=staging-${{ github.sha }} \
+            --set image.frontend.tag=staging-${{ github.sha }} \
+            --atomic \
+            --timeout 5m \
+            --wait
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/taskflow-api \
+            --namespace=taskflow-staging --timeout=5m
+          kubectl rollout status deployment/taskflow-frontend \
+            --namespace=taskflow-staging --timeout=5m
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          helm rollback taskflow -n taskflow-staging || true
