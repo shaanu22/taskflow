@@ -73,8 +73,13 @@ jobs:
     name: Build and Push
     needs: test
     runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ steps.set-tag.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
+      - name: Set image tag
+        id: set-tag
+        run: echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
       - name: Log in to ghcr.io
         uses: docker/login-action@v3
         with:
@@ -90,6 +95,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/taskflow-api
           tags: |
             type=ref,event=tag
+            type=raw,value=prod-${{ github.ref_name }}
             type=raw,value=prod-latest
       - name: Build and push API
         uses: docker/build-push-action@v5
@@ -107,6 +113,7 @@ jobs:
           images: ghcr.io/${{ github.repository_owner }}/taskflow-frontend
           tags: |
             type=ref,event=tag
+            type=raw,value=prod-${{ github.ref_name }}
             type=raw,value=prod-latest
       - name: Build and push frontend
         uses: docker/build-push-action@v5
@@ -149,7 +156,7 @@ jobs:
 
   deploy:
     name: Deploy to Production
-    needs: scan
+    needs: [scan, build]
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -170,8 +177,8 @@ jobs:
             --namespace taskflow-prod \
             --values ./helm/taskflow/values.yaml \
             --values ./helm/taskflow/values-prod.yaml \
-            --set image.api.tag=${{ github.ref_name }} \
-            --set image.frontend.tag=${{ github.ref_name }} \
+            --set image.api.tag=${{ needs.build.outputs.image-tag }} \
+            --set image.frontend.tag=${{ needs.build.outputs.image-tag }} \
             --atomic \
             --timeout 10m \
             --wait
