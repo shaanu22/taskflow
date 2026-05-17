@@ -24,3 +24,4 @@ postgres:
 ingress:
   enabled: true
   className: nginx
+  host: "staging.13.221.130.136.nip.io"
