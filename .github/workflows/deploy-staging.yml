@@ -96,7 +96,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/taskflow-api
           tags: |
-            type=ref,event=branch,suffix=-${{ github.sha }}
+            type=raw,value=staging-${{ github.sha }}
             type=raw,value=staging-latest
       - name: Build and push API
         id: build-api
@@ -114,7 +114,7 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository_owner }}/taskflow-frontend
           tags: |
-            type=ref,event=branch,suffix=-${{ github.sha }}
+            type=raw,value=staging-${{ github.sha }}
             type=raw,value=staging-latest
       - name: Build and push frontend
         id: build-frontend
