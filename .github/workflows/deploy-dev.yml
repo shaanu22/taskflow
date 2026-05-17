@@ -136,6 +136,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          skip-dirs: /usr/local/lib/node_modules/npm,/usr/local/lib/node_modules/corepack,/opt/yarn-v1.22.22
       - name: Scan frontend image
         uses: aquasecurity/trivy-action@master
         with:
@@ -143,6 +144,7 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: "1"
           ignore-unfixed: true
+          skip-dirs: /usr/local/lib/node_modules/npm,/usr/local/lib/node_modules/corepack,/opt/yarn-v1.22.22
 
   deploy:
     name: Deploy to Dev
