@@ -10,7 +10,7 @@ COPY . .
 # and produces a /app/dist (or /app/build) directory of static assets.
 RUN npm run build
 # ── Stage 2: Serve with Nginx ──────────────────────────────────────────────────
-FROM nginx:1.25-alpine AS production
+FROM nginx:1.27-alpine AS production
 # Remove the default Nginx configuration.
 RUN rm /etc/nginx/conf.d/default.conf
 # Add our custom Nginx configuration.
