@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "taskflow.fullname" . }}-redis
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+    component: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "taskflow.selectorLabels" . | nindent 6 }}
+      component: redis
+  template:
+    metadata:
+      labels:
+        {{- include "taskflow.selectorLabels" . | nindent 8 }}
+        component: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          command: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)"]
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskflow-redis-secret
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+          resources:
+            {{- toYaml .Values.redis.resources | nindent 12 }}

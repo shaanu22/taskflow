@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "taskflow.fullname" . }}-frontend
+  labels:
+    {{- include "taskflow.labels" . | nindent 4 }}
+    component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "taskflow.selectorLabels" . | nindent 6 }}
+      component: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "taskflow.selectorLabels" . | nindent 8 }}
+        component: frontend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: frontend
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageOrg }}/{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
+          imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}

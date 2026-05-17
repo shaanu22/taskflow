@@ -1,0 +1,66 @@
+global:
+  imageRegistry: ghcr.io
+  imageOrg: shaanu22
+  environment: dev
+
+image:
+  api:
+    repository: taskflow-api
+    tag: latest
+    pullPolicy: Always
+  frontend:
+    repository: taskflow-frontend
+    tag: latest
+    pullPolicy: Always
+
+api:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  config:
+    nodeEnv: development
+    logLevel: debug
+
+frontend:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+postgres:
+  storage: 5Gi
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+redis:
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "200m"
+      memory: "128Mi"
+
+ingress:
+  enabled: true
+  className: nginx
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
