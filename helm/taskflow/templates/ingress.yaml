@@ -3,12 +3,14 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: {{ include "taskflow.fullname" . }}-ingress
+  namespace: {{ .Release.Namespace }}
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: {{ .Values.ingress.className }}
   rules:
-    - http:
+    - host: {{ .Values.ingress.host }}
+      http:
         paths:
           - path: /
             pathType: Prefix
