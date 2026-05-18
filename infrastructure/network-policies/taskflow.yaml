@@ -1,0 +1,124 @@
+# Default deny all ingress and egress in taskflow-prod
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: taskflow-prod
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Allow frontend to receive traffic from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-ingress
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+---
+# Allow API to receive traffic from frontend and ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-ingress
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    - from:
+        - podSelector:
+            matchLabels:
+              component: frontend
+      ports:
+        - port: 3000
+---
+# Allow API to talk to postgres, redis, and DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-egress
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              component: postgres
+      ports:
+        - port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              component: redis
+      ports:
+        - port: 6379
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - port: 53
+          protocol: UDP
+---
+# Allow postgres to receive traffic from API only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-postgres-from-api
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - port: 5432
+---
+# Allow redis to receive traffic from API only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-redis-from-api
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: redis
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              component: api
+      ports:
+        - port: 6379

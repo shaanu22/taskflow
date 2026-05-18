@@ -19,12 +19,22 @@ spec:
     spec:
       imagePullSecrets:
         - name: ghcr-pull-secret
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        runAsGroup: 101
       containers:
         - name: frontend
           image: "{{ .Values.global.imageRegistry }}/{{ .Values.global.imageOrg }}/{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
           imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
           ports:
             - containerPort: 8080
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           readinessProbe:
             httpGet:
               path: /
@@ -33,3 +43,17 @@ spec:
             periodSeconds: 5
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:
+            - name: cache
+              mountPath: /var/cache/nginx
+            - name: run
+              mountPath: /var/run
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: cache
+          emptyDir: {}
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

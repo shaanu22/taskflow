@@ -1,0 +1,75 @@
+# Developer role for dev namespace — full access including exec
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: taskflow-dev
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+# Developer role for staging — no exec
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer
+  namespace: taskflow-staging
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get", "list"]
+---
+# Developer role for prod — read only
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: developer-readonly
+  namespace: taskflow-prod
+rules:
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+---
+# CI/CD service account for deployments
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cicd
+  namespace: taskflow-prod
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cicd-deployer
+  namespace: taskflow-prod
+rules:
+  - apiGroups: ["apps", "argoproj.io"]
+    resources: ["deployments", "rollouts"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cicd-deployer
+  namespace: taskflow-prod
+subjects:
+  - kind: ServiceAccount
+    name: cicd
+    namespace: taskflow-prod
+roleRef:
+  kind: Role
+  name: cicd-deployer
+  apiGroup: rbac.authorization.k8s.io
