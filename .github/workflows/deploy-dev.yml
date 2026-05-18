@@ -160,24 +160,16 @@ jobs:
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
 
+      - name: Install yq
+        run: |
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
       - name: Update dev image tags
         run: |
           cd gitops
-          cat > environments/dev/values.yaml << YAML
-global:
-  imageRegistry: ghcr.io
-  imageOrg: shaanu22
-  environment: dev
-
-image:
-  api:
-    tag: main-${{ github.sha }}
-  frontend:
-    tag: main-${{ github.sha }}
-
-ingress:
-  host: "13.221.130.136.nip.io"
-YAML
+          yq e '.image.api.tag = "main-${{ github.sha }}"' -i environments/dev/values.yaml
+          yq e '.image.frontend.tag = "main-${{ github.sha }}"' -i environments/dev/values.yaml
 
       - name: Commit and push
         run: |
@@ -185,8 +177,5 @@ YAML
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add environments/dev/values.yaml
-          git diff --staged --quiet || git commit -m "deploy(dev): update image tags to main-${{ github.sha }}
-
-Triggered by: ${{ github.event.head_commit.message }}
-Author: ${{ github.actor }}"
+          git diff --staged --quiet || git commit -m "deploy(dev): update image tags to main-${{ github.sha }}"
           git push
