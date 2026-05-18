@@ -157,40 +157,35 @@ jobs:
           skip-dirs: /usr/local/lib/node_modules/npm,/usr/local/lib/node_modules/corepack,/opt/yarn-v1.22.22
 
   deploy:
-    name: Deploy to Staging
+    name: Update GitOps Repo (Staging)
     needs: [scan, build]
     runs-on: ubuntu-latest
     environment:
       name: staging
     steps:
-      - uses: actions/checkout@v4
-      - name: Configure kubectl
-        run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
-      - name: Install Helm
-        uses: azure/setup-helm@v3
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
         with:
-          version: "3.14.0"
-      - name: Deploy to staging
+          repository: shaanu22/taskflow-gitops
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: gitops
+
+      - name: Install yq
         run: |
-          helm upgrade --install taskflow ./helm/taskflow \
-            --namespace taskflow-staging \
-            --values ./helm/taskflow/values.yaml \
-            --values ./helm/taskflow/values-staging.yaml \
-            --set image.api.tag=${{ needs.build.outputs.image-tag }} \
-            --set image.frontend.tag=${{ needs.build.outputs.image-tag }} \
-            --atomic \
-            --timeout 5m \
-            --wait
-      - name: Verify rollout
+          wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          chmod +x /usr/local/bin/yq
+
+      - name: Update staging image tags
         run: |
-          kubectl rollout status deployment/taskflow-api \
-            --namespace=taskflow-staging --timeout=5m
-          kubectl rollout status deployment/taskflow-frontend \
-            --namespace=taskflow-staging --timeout=5m
-      - name: Rollback on failure
-        if: failure()
+          cd gitops
+          yq e '.image.api.tag = "${{ needs.build.outputs.image-tag }}"' -i environments/staging/values.yaml
+          yq e '.image.frontend.tag = "${{ needs.build.outputs.image-tag }}"' -i environments/staging/values.yaml
+
+      - name: Commit and push
         run: |
-          helm rollback taskflow -n taskflow-staging || true
+          cd gitops
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add environments/staging/values.yaml
+          git diff --staged --quiet || git commit -m "deploy(staging): update image tags to ${{ needs.build.outputs.image-tag }}"
+          git push
