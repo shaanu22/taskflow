@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: taskflow-api
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - taskflow-dev
+      - taskflow-staging
+      - taskflow-prod
+  selector:
+    matchLabels:
+      component: api
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
