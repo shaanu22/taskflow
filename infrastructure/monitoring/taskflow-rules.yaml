@@ -1,0 +1,66 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: taskflow-slos
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: taskflow.availability
+      interval: 30s
+      rules:
+        - alert: TaskFlowAPIDown
+          expr: |
+            absent(taskflow_http_requests_total{namespace="taskflow-prod"})
+          for: 2m
+          labels:
+            severity: critical
+            namespace: taskflow-prod
+          annotations:
+            summary: "TaskFlow API is down in production"
+            description: "No HTTP requests recorded for 2 minutes in taskflow-prod"
+
+        - alert: TaskFlowHighErrorRate
+          expr: |
+            sum(rate(taskflow_http_requests_total{
+              namespace="taskflow-prod",
+              status_code=~"5.."
+            }[5m])) /
+            sum(rate(taskflow_http_requests_total{
+              namespace="taskflow-prod"
+            }[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            namespace: taskflow-prod
+          annotations:
+            summary: "TaskFlow error rate above 5%"
+            description: "Production error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+
+        - alert: TaskFlowHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(taskflow_http_request_duration_seconds_bucket{
+                namespace="taskflow-prod"
+              }[5m])) by (le)
+            ) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            namespace: taskflow-prod
+          annotations:
+            summary: "TaskFlow p95 latency above 1 second"
+            description: "95th percentile latency is {{ $value }}s in production"
+
+        - alert: TaskFlowPodRestarts
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace=~"taskflow-.*"
+            }[1h]) > 3
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "TaskFlow pod restarting frequently"
+            description: "Pod {{ $labels.pod }} in {{ $labels.namespace }} has restarted {{ $value }} times in the last hour"

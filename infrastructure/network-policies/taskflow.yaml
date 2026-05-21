@@ -122,3 +122,23 @@ spec:
               component: api
       ports:
         - port: 6379
+---
+# Allow Prometheus to scrape metrics from API
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: taskflow-prod
+spec:
+  podSelector:
+    matchLabels:
+      component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - port: 3000
