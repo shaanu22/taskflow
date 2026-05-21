@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgres-backup
+  namespace: taskflow-prod
+spec:
+  schedule: "0 2 * * *"    # 2 AM daily
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: default
+          restartPolicy: OnFailure
+          containers:
+            - name: backup
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+                  POSTGRES_POD=$(kubectl get pod -n taskflow-prod \
+                    -l component=postgres \
+                    -o jsonpath='{.items[0].metadata.name}')
+                  echo "Backing up from pod: $POSTGRES_POD"
+                  kubectl exec -n taskflow-prod "$POSTGRES_POD" -- \
+                    pg_dump -U taskflow taskflow | gzip > \
+                    /backup/taskflow_prod_${TIMESTAMP}.sql.gz
+                  echo "Backup complete"
+                  ls -lh /backup/
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backup
+          volumes:
+            - name: backup-storage
+              emptyDir: {}
