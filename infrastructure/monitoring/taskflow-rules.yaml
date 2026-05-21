@@ -8,18 +8,18 @@ metadata:
 spec:
   groups:
     - name: taskflow.availability
-      interval: 30s
+      interval: 15s
       rules:
         - alert: TaskFlowAPIDown
           expr: |
             absent(taskflow_http_requests_total{namespace="taskflow-prod"})
-          for: 2m
+          for: 1m
           labels:
             severity: critical
             namespace: taskflow-prod
           annotations:
             summary: "TaskFlow API is down in production"
-            description: "No HTTP requests recorded for 2 minutes in taskflow-prod"
+            description: "No HTTP requests recorded for 1 minute in taskflow-prod"
 
         - alert: TaskFlowHighErrorRate
           expr: |
@@ -30,13 +30,13 @@ spec:
             sum(rate(taskflow_http_requests_total{
               namespace="taskflow-prod"
             }[5m])) > 0.05
-          for: 5m
+          for: 2m
           labels:
             severity: critical
             namespace: taskflow-prod
           annotations:
             summary: "TaskFlow error rate above 5%"
-            description: "Production error rate is {{ $value | humanizePercentage }} over the last 5 minutes"
+            description: "Production error rate is {{ $value | humanizePercentage }}"
 
         - alert: TaskFlowHighLatency
           expr: |
@@ -45,7 +45,7 @@ spec:
                 namespace="taskflow-prod"
               }[5m])) by (le)
             ) > 1.0
-          for: 5m
+          for: 2m
           labels:
             severity: warning
             namespace: taskflow-prod
@@ -58,9 +58,9 @@ spec:
             increase(kube_pod_container_status_restarts_total{
               namespace=~"taskflow-.*"
             }[1h]) > 3
-          for: 5m
+          for: 2m
           labels:
             severity: warning
           annotations:
             summary: "TaskFlow pod restarting frequently"
-            description: "Pod {{ $labels.pod }} in {{ $labels.namespace }} has restarted {{ $value }} times in the last hour"
+            description: "Pod {{ $labels.pod }} in {{ $labels.namespace }} restarted {{ $value }} times in the last hour"
