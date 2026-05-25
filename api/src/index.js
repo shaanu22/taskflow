@@ -71,3 +71,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`TaskFlow API running on port ${PORT}`);
 });
+
+// Liveness probe — is the process alive? Never checks dependencies
+app.get('/live', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});

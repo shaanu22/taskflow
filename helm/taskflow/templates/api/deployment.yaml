@@ -49,18 +49,18 @@ spec:
               path: /health
               port: 3000
             initialDelaySeconds: 10
-            periodSeconds: 5
+            periodSeconds: 10
             failureThreshold: 3
           livenessProbe:
             httpGet:
-              path: /health
+              path: /live
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 10
             failureThreshold: 3
           startupProbe:
             httpGet:
-              path: /health
+              path: /live
               port: 3000
             initialDelaySeconds: 5
             periodSeconds: 5
