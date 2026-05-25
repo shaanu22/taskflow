@@ -6,9 +6,17 @@ const { register, httpRequestDuration, httpRequestTotal } = require('./metrics')
 const app = express();
 app.use(express.json());
 
-// Database connection pool
+// Lazy pool — does not connect until first query
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 5000,
+});
+
+// Handle pool errors without crashing
+pool.on('error', (err) => {
+  console.error('Unexpected database pool error:', err.message);
 });
 
 // Metrics middleware
@@ -27,7 +35,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Health check — verifies database connectivity
+// Health check — verifies database connectivity without crashing
 app.get('/health', async (req, res) => {
   const health = {
     status: 'ok',
@@ -39,7 +47,9 @@ app.get('/health', async (req, res) => {
   };
 
   try {
-    await pool.query('SELECT 1');
+    const client = await pool.connect();
+    await client.query('SELECT 1');
+    client.release();
     health.checks.database = 'ok';
   } catch (err) {
     health.status = 'degraded';
