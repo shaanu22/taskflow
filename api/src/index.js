@@ -1,10 +1,17 @@
 require('dotenv').config();
 const express = require('express');
+const { Pool } = require('pg');
 const { register, httpRequestDuration, httpRequestTotal } = require('./metrics');
 
 const app = express();
 app.use(express.json());
 
+// Database connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
+
+// Metrics middleware
 app.use((req, res, next) => {
   const start = Date.now();
   res.on('finish', () => {
@@ -20,10 +27,31 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+// Health check — verifies database connectivity
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    checks: {
+      api: 'ok',
+      database: 'unknown',
+    },
+  };
+
+  try {
+    await pool.query('SELECT 1');
+    health.checks.database = 'ok';
+  } catch (err) {
+    health.status = 'degraded';
+    health.checks.database = 'error';
+    health.checks.database_error = err.message;
+    return res.status(503).json(health);
+  }
+
+  res.json(health);
 });
 
+// Prometheus metrics endpoint
 app.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
